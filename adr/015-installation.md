@@ -3,7 +3,7 @@
 | Status          | Proposed          |
 |-----------------|-------------------|
 | Date            | 2026-10-02        |
-| Decision-makers | Platform Mesh     |
+| Decision-makers | Platform Mesh TSC |
 
 ## Context and Problem Statement
 
@@ -19,12 +19,12 @@ The goal is a Helm-first installation that uses only standard Kubernetes primiti
 
 ## Decision Drivers
 
-- **Reduced resource footprint**: must run on most developer laptops without changes
-- **A single installation path**: provide only one installation path, which can be tailored for local, production, air-gapped via configuration only
+- **Reduced resource footprint**: the installation should reduce resource usage so Platform Mesh can run in constrained environments; a CORE-only installation that disables non-core functionality (gated on the modularization RFC) is the main lever
+- **A single installation path**: provide only one installation path — one document and one set of parts to install — tailored for local, production, and air-gapped targets via configuration only
 - **No image building during local install**: use published components for the install
 - **Declarative-first**: every part of the installation must be expressible as a Kubernetes resource so GitOps controllers can manage and reconcile it.
 - **Separation of production and development values**: the published chart ships production-safe defaults; environment-specific overrides live in files outside the chart.
-- **Minimal prerequisites**: External dependencies are moved out of the PlatformMesh installation and listed clearly as requirements: OCM, FLUX, cert-manager, Ingress, Gateway-API, cloudnative-pg, keycloak-operator; Remove as much as possible dependencies: KRO
+- **Minimal prerequisites**: external dependencies are moved out of the Platform Mesh installation and listed clearly as requirements — Flux, the OCM Kubernetes controller, cert-manager, Gateway API, an ingress/Gateway controller, CloudNativePG, and the Keycloak Operator. Remove as many internal dependencies as possible, starting with KRO.
 - **GatewayClass agnosticism**: the chart should not hard-code Traefik; it should accept a configurable GatewayClass name so users can bring their own ingress controller.
 - **Global configuration via `PlatformMesh` resource**: settings that appear in multiple Helm charts (e.g. `userIdClaim`, IdP configuration) should be set once in the `PlatformMesh` resource and propagated by the operator, avoiding partial-configuration drift.
 - **Improved user documentation**: website, repositories, readme's should all be consistent and straightforward. User should be able to follow obvious installation instructions without alternatives, duplicates and unclear installation modes.
@@ -36,30 +36,30 @@ The goal is a Helm-first installation that uses only standard Kubernetes primiti
 
 Iterate on the existing shell scripts and production guide. Teams that need GitOps compatibility must create it by themselves.
 
-- Good, because all most scenarios are covered: local pinned, local prerelease, production.
-- Good, because of existing platform-mesh-operator already does 90% of the installation decleratively in a GitOps friendly way.
+- Good, because almost all scenarios are covered: local pinned, local prerelease, production.
+- Good, because the existing platform-mesh-operator already does 100% of the installation declaratively in a GitOps-friendly way.
 - Good, because it is fully automated.
-- Bad, because of heavy installation scope - PM installs external dependencies which are not core PM.
-- Bad, because users run into many issues and have bad experience.
+- Bad, because of heavy installation scope — PM installs external dependencies which are not core PM.
+- Bad, because users run into many issues and have a bad experience.
 - Bad, because the correct path is hard to identify and follow.
-- Bad, because of too unrealistic local requirements for resources and dependency tooling.
+- Bad, because of unrealistic local requirements for resources and dependency tooling.
 - Bad, because host-tool differences (base64, jq) cause silent failures on developer machines.
-- Bad, because if error occurs, debugging is hard for a newbee without experience with the whole stack.
+- Bad, because when an error occurs, debugging is hard for a newcomer without experience with the whole stack.
 
 ### B. New declarative installation based on the platform-mesh-operator
 
-Provide a single installation path which is declerative and uses the `platform-mesh-operator` to fully bootstrap a working environment. It can target different topologies via configuration. Removes external dependencies outside the PM installation path and clearly lists them as prerequisites. Keeps OCM and existing components structure. Charts defaults target production, while local needs configuration override. Further, a stripped down CORE PM installation can be enabled when modularization RFC is implemented and non-core functionalities can be turned off.
+Provide a single installation path — one document and one set of parts to install — which is declarative and uses the `platform-mesh-operator` to fully bootstrap a working environment. It targets different topologies (local, production, air-gapped) via configuration only. External dependencies are moved out of the PM installation path and listed clearly as prerequisites. Chart defaults target production; local needs configuration overrides. Once the modularization RFC is implemented, a stripped-down CORE-only PM installation can be enabled, turning off non-core functionality to reduce the resource footprint significantly.
 
 - Good, because a `helm install` command produces a complete, reconciling installation without scripts.
-- Good, because the rendered Kubernetes resources are managed by Flux or any other GitOps controller.
+- Good, because the rendered Kubernetes resources are managed by platform-mesh-operator.
 - Good, because we keep OCM benefits like the chart can be pinned to an exact Platform Mesh OCM component version, making installations reproducible and air-gap-capable.
-- Good, because it removes confusion regarding appropriate installation path.
-- Good, because it reuses the `platform-mesh-operator` to bootstrap the environment which keeps the existing structure in place and features like operator templating.
-- Good, because it enables the removal of many dependencies like KRO, jq, yq, mkcerts, openssl.
-- Bad, because user might still get confused by unfamiliar technologies - OCM.
-- Bad, because the user stills needs to understand how the installation process works and where the user-facing configuration toggles live.
+- Good, because it removes confusion regarding the appropriate installation path.
+- Good, because it reuses the `platform-mesh-operator` to bootstrap the environment, which keeps the existing structure in place and features like operator templating.
+- Good, because it enables the removal of many dependencies like KRO, jq, yq, mkcert, openssl.
+- Bad, because the user might still get confused by unfamiliar technologies — OCM, FluxCD.
+- Bad, because the user still needs to understand how the installation process works and where the user-facing configuration toggles live.
 - Bad, because useful features like local-setup and PRERELEASE modes are removed.
-- Bad, because it is less automated compared to script-heavy installation.
+- Bad, because it is less automated compared to the script-heavy installation.
 
 ### C. Flat Flux `HelmRelease` manifests applied directly
 
@@ -70,8 +70,8 @@ Ship Platform Mesh as a flat set of per-component Flux `HelmRelease` and `OCIRep
 - Good, because the installation is fully declarative and GitOps-native once the manifests are generated.
 - Bad, because stripping OCM/KRO/PMO templating means the per-cluster values (domain, service IPs, host aliases) must be substituted into every manifest, and the generator becomes a parallel source of truth to the published chart.
 - Bad, because there is no composition engine ordering the `HelmReleases`; the rollout relies on Flux retries and raised concurrency, and several steps (kcp webhook Secret, `platform-mesh-profile.yaml`) are still manual in the spike.
-- Bad, because it discards the Platform Mesh Operator's bootstrapping role rather than fixing it — the operator already performs 90% of the declarative install, so this duplicates effort instead of building on it.
-- Bad, removing OCM controller loses some features like proof of origin, packaging, versioning.
+- Bad, because it discards the Platform Mesh Operator's bootstrapping role rather than fixing it — the operator already performs 100% of the declarative install, so this duplicates effort instead of building on it.
+- Bad, because removing the OCM controller loses features like proof of origin, packaging, and versioning.
 
 ## Decision Outcome
 
@@ -86,43 +86,37 @@ Concretely:
    - The OCM signing public certificate (Secret), unless `installation.installSigningCertificate=false`.
    - The chart fails to render if `installation.baseDomain` is not set.
 
-2. **Production-safe chart defaults only.** Values specific to local Kind clusters (host aliases, hard-coded Traefik ClusterIP, localhost port overrides) are removed from the chart. A local-development values file outside the published chart carries those overrides for developer and CI use.
+2. **Production is the default profile.** `installation.profile` selects the topology; it defaults to `production`, which assumes the infrastructure prerequisites already exist. A `kind` profile disables the infrastructure that is a prerequisite in production and carries the local-only values. The production profile must not contain any localhost or Kind-specific values.
 
-3. **`default-profile.yaml` remains in `files/` for service wiring**, but must not contain any localhost or Kind-specific values. It describes how Platform Mesh services connect to each other; environment-specific overrides are applied on top.
+3. **Infrastructure prerequisites are scoped outside the PM installer.** The infrastructure dependencies — Flux, the OCM Kubernetes controller, cert-manager, Gateway API, an ingress/Gateway controller, CloudNativePG, and the Keycloak Operator — are not installed by Platform Mesh. They are listed as requirements that the user satisfies with their own tooling before installing PM; preparing them does not count as a PM installation step.
 
-4. **Local Kind TLS is handled by a separate, explicitly local chart** (`platform-mesh-kind-certificates`). It creates a self-signed CA and leaf certificate once cert-manager is ready, and must not be used in production. The two-step sequence (install operator → install certificates and restart operator) is kept for Kind only, until the operator can reload its Go trust store without a restart.
+4. **TLS is a prerequisite, not part of the installer.** Certificates are provisioned via cert-manager with the user's issuer or externally managed certificates. Self-signed certificates are acceptable for local use only. Provisioning them is part of satisfying the prerequisites, outside the PM installation flow.
 
-5. **Flux and the OCM Kubernetes controller are declared prerequisites.** The chart does not install them. An optional prerequisites chart is provided for users who want a reference starting point; production teams are expected to satisfy prerequisites through their own tooling.
+5. **KRO is removed from the installation flow.** The Platform Mesh Operator renders `HelmRelease` resources directly from OCM components. KRO's template role is absorbed into the operator. The effective chain becomes: `PMO → OCM → HelmReleases → Flux → Pods`.
 
-6. **KRO is removed from the installation flow.** The Platform Mesh Operator renders `HelmRelease` resources directly from OCM components. KRO's template role is absorbed into the operator. The effective chain becomes: `PMO → OCM → HelmReleases → Flux → Pods`. Using KRO by end user to enable fully encapsulated installation based on OCM source is still easily achievable.
+6. **Global configuration via `PlatformMesh` resource.** The operator already propagates configuration to the Platform Mesh services. This improves its templating capabilities so that configuration duplication is fully removed — settings that currently appear in multiple Helm charts (`userIdClaim`, IdP endpoint, SMTP) are set once on the `PlatformMesh` resource. It also adds flexibility by allowing user-defined templates rather than only the fixed ones built into the operator.
 
-7. **Global configuration via `PlatformMesh` resource.** Settings that currently appear in multiple Helm charts (`userIdClaim`, IdP endpoint, SMTP) are promoted to fields on the `PlatformMesh` resource. The operator propagates these values to the relevant Helm releases, so operators set them in one place.
+7. **Documentation is a single install guide**, replacing the previous script-based instructions and the dispersed per-repository docs. It documents the one supported path; alternative modes and duplicated docs are removed.
 
 ### Consequences
 
-- Good, because a complete Platform Mesh installation for Kind requires two `helm install` commands and no scripts.
-- Good, because the same chart, with different values, is used for local development, demo, and production; no separate code paths exist.
-- Good, because Flux or ArgoCD can manage the lifecycle by supplying the `PlatformMesh` resource directly (`installation.enabled=false`) or by wrapping the chart in a `HelmRelease` (`installation.enabled=true`).
-- Good, because the OCM component version is an explicit chart value, making rollbacks and upgrades fully declarative.
+- Good, because once the prerequisites are in place, a single `helm install` of the operator chart produces a complete, reconciling Platform Mesh installation with no scripts.
+- Good, because the same chart, with different profiles, is used for local development, demo, and production; no separate code paths exist.
+- Good, because the OCM component version is the only source of truth for the whole PlatformMesh service landscape.
 - Good, because removing KRO eliminates one reconciliation layer and simplifies the mental model to `PMO → OCM → HelmReleases → Flux → Pods`.
 - Good, because global configuration in the `PlatformMesh` resource prevents the partial-configuration drift that has caused production incidents.
-- Bad, because the two-step Kind installation (operator, then certificates and restart) is a deliberate sequencing dependency that cannot yet be eliminated without an operator change.
-- Bad, because Traefik is still referenced in the current profile; making GatewayClass fully configurable requires follow-up work in the chart and operator.
-- Bad, because of technology stack complexity is still hard to understand by all users.
-- During the transition, `installation.enabled=false` remains the default to avoid breaking deployments that supply `PlatformMesh` resources externally.
+- Good, because ingress controller becomes plugable via GatewayClass configuration, thus decoupling Traefik.
+- Bad, because the resource footprint is not reduced by this ADR alone; the significant reduction depends on the CORE-only installation gated on the modularization RFC.
+- Bad, because the infrastructure prerequisites must be prepared by the user and are not part of the installer.
+- Bad, because the technology stack is still complex and hard for all users to understand.
 
 ## Open Questions
 
-- **Production profile**: a production-appropriate profile (no Kind-specific values, no `hostAliases`, agnostic GatewayClass) needs to be defined and tested on an internet-facing cluster before the installation flow is recommended beyond Kind.
-- **Traefik coupling**: the current profile has hard references to Traefik (GatewayClass name, ClusterIP). Making GatewayClass configurable is deferred to a follow-up PR.
-- **Two-step Kind sequence**: the operator restart after certificate creation is a Go trust-store limitation. Eliminating it requires an operator change; deferred.
-- **Prerequisites chart scope**: the optional prerequisites chart (Flux, OCM controller, Traefik, cert-manager) needs a defined scope. The question of whether it ships as part of the Platform Mesh component or as a separate reference artifact is open.
-- **KRO migration**: operator logic to replace KRO's template rendering needs to be designed and implemented before KRO is removed. This ADR records the intent; the implementation is a separate work item.
+- **Production profile**: the `production` profile (no Kind-specific values, no `hostAliases`, agnostic GatewayClass) needs to be defined and validated on an internet-facing cluster before the installation flow is recommended beyond Kind.
+- **Traefik coupling**: investigate feasibility of Traefik decoupling.
+- **Resource footprint / CORE-only install**: the significant resource reduction depends on the modularization RFC. Which functionality is core versus optional, and how it is toggled, is resolved there, not in this ADR.
 
 ## References
 
-- [PR #2: script-less install (akafazov/platform-mesh-helm-charts)](https://github.com/akafazov/platform-mesh-helm-charts/pull/2) — POC implementation that this ADR documents.
+- [PR #2: PlatformMesh install (akafazov/platform-mesh-helm-charts)](https://github.com/akafazov/platform-mesh-helm-charts/pull/2) — POC implementation that this ADR documents.
 - [`platform-mesh-from-scratch`](https://github.com/xrstf/platform-mesh-from-scratch) — the bare-manifest "from scratch" spike documented as option C.
-- [ADR 001: SBOM Generation and OCM Component Restructuring](001-sbom-generation-and-ocm-component-restructuring.md) — the three-component OCM model that the installation flow depends on.
-- [ADR 010: Consolidate Helm Charts and OCM into a Single Repository](010-consolidate-helm-charts-and-ocm.md) — the chart repository this installation flow is part of.
-- [Platform Mesh Zulip: local-setup thread](https://linuxfoundation.zulipchat.com/#narrow/channel/532985-neonephos-platform-mesh-discussion/topic/local-setup/with/628570578) — extended community discussion that shaped this decision.
