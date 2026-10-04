@@ -90,13 +90,28 @@ Concretely:
 
 3. **Infrastructure prerequisites are scoped outside the PM installer.** The infrastructure dependencies — Flux, the OCM Kubernetes controller, cert-manager, Gateway API, an ingress/Gateway controller, CloudNativePG, and the Keycloak Operator — are not installed by Platform Mesh. They are listed as requirements that the user satisfies with their own tooling before installing PM; preparing them does not count as a PM installation step.
 
-4. **TLS is a prerequisite, not part of the installer.** Certificates are provisioned via cert-manager with the user's issuer or externally managed certificates. Self-signed certificates are acceptable for local use only. Provisioning them is part of satisfying the prerequisites, outside the PM installation flow.
+4. **Ability to issue certificates for used hosts** The user should be able to issue certificates for the configured domain, either self-signed or publicly trusted.
 
 5. **KRO is removed from the installation flow.** The Platform Mesh Operator renders `HelmRelease` resources directly from OCM components. KRO's template role is absorbed into the operator. The effective chain becomes: `PMO → OCM → HelmReleases → Flux → Pods`.
 
 6. **Global configuration via `PlatformMesh` resource.** The operator already propagates configuration to the Platform Mesh services. This improves its templating capabilities so that configuration duplication is fully removed — settings that currently appear in multiple Helm charts (`userIdClaim`, IdP endpoint, SMTP) are set once on the `PlatformMesh` resource. It also adds flexibility by allowing user-defined templates rather than only the fixed ones built into the operator.
 
 7. **Documentation is a single install guide**, replacing the previous script-based instructions and the dispersed per-repository docs. It documents the one supported path; alternative modes and duplicated docs are removed.
+
+8. **Traefik coupling**: Make ingress configurable via follow-up.
+
+### Scope
+
+The scope for this ADR is:
+- improve Installation UX
+- fully declarative and GitOps friendly installation path
+
+Things outside the scope of this ADR:
+- installation of PlatformMesh via single command
+- reducing resource footprint
+- single command upgrade
+- CI/CD and release engineering
+- upgrade/migration
 
 ### Consequences
 
@@ -105,7 +120,6 @@ Concretely:
 - Good, because the OCM component version is the only source of truth for the whole PlatformMesh service landscape.
 - Good, because removing KRO eliminates one reconciliation layer and simplifies the mental model to `PMO → OCM → HelmReleases → Flux → Pods`.
 - Good, because global configuration in the `PlatformMesh` resource prevents the partial-configuration drift that has caused production incidents.
-- Good, because ingress controller becomes plugable via GatewayClass configuration, thus decoupling Traefik.
 - Bad, because the resource footprint is not reduced by this ADR alone; the significant reduction depends on the CORE-only installation gated on the modularization RFC.
 - Bad, because the infrastructure prerequisites must be prepared by the user and are not part of the installer.
 - Bad, because the technology stack is still complex and hard for all users to understand.
@@ -113,7 +127,6 @@ Concretely:
 ## Open Questions
 
 - **Production profile**: the `production` profile (no Kind-specific values, no `hostAliases`, agnostic GatewayClass) needs to be defined and validated on an internet-facing cluster before the installation flow is recommended beyond Kind.
-- **Traefik coupling**: investigate feasibility of Traefik decoupling.
 - **Resource footprint / CORE-only install**: the significant resource reduction depends on the modularization RFC. Which functionality is core versus optional, and how it is toggled, is resolved there, not in this ADR.
 
 ## References
