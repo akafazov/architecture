@@ -99,7 +99,7 @@ Concretely:
 
 7. **OpenTelemetry is disabled by default.** The observability stack (OTEL collector, Tempo, Grafana) ships disabled by default and is opt-in via the `PlatformMesh` resource. This is the primary near-term lever for reducing the resource footprint on both developer machines and production clusters, ahead of the modularization RFC.
 
-8. **Upgradability.** The declarative installation path naturally supports `helm upgrade` for operator chart updates. Detailed upgrade sequencing — CRD upgrades, HelmRelease ordering, data migrations — is deferred to a follow-up ADR; upgradability is a stated goal and is not addressed by scripts.
+8. **Upgradability.** The declarative installation path naturally supports `helm upgrade` for operator chart updates. Detailed upgrade sequencing — CRD upgrades, HelmRelease ordering, data migrations — is deferred to a follow-up ADR; upgradability is a stated goal and is not addressed by scripts. The operator and the PlatformMesh OCM component should be upgraded separately due to fragmented install.
 
 9. **Documentation is a single install guide**, replacing the previous script-based instructions and the dispersed per-repository docs. It documents the one supported path; alternative modes and duplicated docs are removed.
 
@@ -134,6 +134,7 @@ Follow-ups to this ADR:
 - Bad, because the production profile must be validated on an internet-facing cluster before being recommended beyond Kind; this is tracked as a follow-up task.
 - Bad, because the infrastructure prerequisites must be prepared by the user and are not part of the installer.
 - Bad, because the technology stack is still complex and hard for all users to understand.
+- Bad, because the `platform-mesh-operator` isn't resolved from the OCM component which results in fragmented installation. Relevant especially for airgapped environments.
 
 ## Open Questions
 
